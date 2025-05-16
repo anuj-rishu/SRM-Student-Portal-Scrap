@@ -1,0 +1,25 @@
+{
+  "name": "srm-student-portal-scrap",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anuj-rishu/SRM-Student-Portal-Scrap.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/anuj-rishu/SRM-Student-Portal-Scrap/issues"
+  },
+  "homepage": "https://github.com/anuj-rishu/SRM-Student-Portal-Scrap#readme",
+  "description": "",
+  "dependencies": {
+    "express": "^5.1.0",
+    "puppeteer": "^24.8.2",
+    "tesseract.js": "^6.0.1"
+  }
+}
