@@ -4,31 +4,47 @@ const fs = require("fs");
 
 async function preprocessCaptcha(imagePath) {
   const processedPath = imagePath.replace(".png", "_processed.png");
-  await sharp(imagePath).grayscale().threshold(150).toFile(processedPath);
+  
+  
+  await sharp(imagePath)
+    .grayscale()
+    .normalize() 
+    .median(1)   
+    .threshold(160) 
+    .toFile(processedPath);
+    
   return processedPath;
 }
 
-async function recognizeCaptchaWithRetry(imagePath, maxRetries = 3) {
+async function recognizeCaptchaWithRetry(imagePath, maxRetries = 5) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const processedPath = await preprocessCaptcha(imagePath);
-      const {
-        data: { text },
-      } = await Tesseract.recognize(processedPath, "eng");
-      const captchaText = text.trim().replace(/\s/g, "");
-
-      console.log(`OCR attempt ${attempt}: "${captchaText}"`);
-
-      if (captchaText && /^[a-zA-Z0-9]{4,7}$/.test(captchaText)) {
-        return captchaText;
+      
+      const result = await Tesseract.recognize(processedPath, 'eng', {
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+        tessjs_create_hocr: false,
+        tessjs_create_tsv: false
+      });
+      
+  
+      let captchaText = result.data.text.trim();
+      captchaText = captchaText.replace(/\s+/g, ''); 
+      captchaText = captchaText.replace(/[^a-zA-Z0-9]/g, '');
+      
+      if (captchaText.length < 4 || captchaText.length > 8) {
+        throw new Error("Invalid captcha length");
       }
-      console.log("OCR result invalid, retrying...");
-    } catch (err) {
-      console.log(`OCR attempt ${attempt} failed:`, err.message);
+      
+      return captchaText;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to recognize captcha after ${maxRetries} attempts: ${error.message}`);
+      }
+      console.log(`OCR attempt ${attempt} failed: ${error.message}, retrying...`);
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-    await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new Error("Failed to read CAPTCHA text after retries");
 }
 
 function cleanupCaptchaFiles(captchaPath) {

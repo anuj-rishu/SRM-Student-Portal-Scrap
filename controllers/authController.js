@@ -8,20 +8,25 @@ const {
 } = require("../utils/captcha");
 
 async function loginUser(login, passwd, captchaPath) {
-  const browser = await puppeteer.launch({
+  const launchOptions = {
     headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/home/ubuntu/chromium/chrome-linux/chrome',
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-accelerated-2d-canvas",
       "--no-first-run",
-      "--no-zygote",
-      "--single-process",
-      "--disable-gpu"
+      "--disable-gpu",
     ],
-  });
+  };
+
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+
+    launchOptions.args.push("--no-zygote", "--single-process");
+  }
+
+  const browser = await puppeteer.launch(launchOptions);
   const page = await browser.newPage();
   await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
 
@@ -80,12 +85,56 @@ exports.login = async (req, res) => {
   const { login, passwd } = req.body;
   const captchaPath = path.join(__dirname, "..", "captcha.png");
 
-  try {
-    const { cookies, csrf } = await loginUser(login, passwd, captchaPath);
-    res.json({ success: true, cookies, csrf, message: "Login successful." });
-  } catch (err) {
-    res.status(401).json({ success: false, error: err.message });
-  } finally {
-    cleanupCaptchaFiles(captchaPath);
+  // Add retries for the entire login process
+  let attempts = 0;
+  const maxAttempts = 5; // Increased from 3 to 5 for better success rate
+  let lastError = null;
+
+  while (attempts < maxAttempts) {
+    try {
+      // Clear previous captcha file if it exists
+      if (attempts > 0) {
+        try {
+          const fs = require("fs");
+          if (fs.existsSync(captchaPath)) {
+            fs.unlinkSync(captchaPath);
+          }
+        } catch (e) {
+          console.log("Error cleaning up previous captcha:", e.message);
+        }
+      }
+
+      const { cookies, csrf } = await loginUser(login, passwd, captchaPath);
+      cleanupCaptchaFiles(captchaPath); // Clean up on success
+      return res.json({
+        success: true,
+        cookies,
+        csrf,
+        message:
+          attempts > 0
+            ? `Login successful after ${attempts + 1} attempts.`
+            : "Login successful.",
+      });
+    } catch (err) {
+      lastError = err;
+      attempts++;
+      console.log(`Login attempt ${attempts} failed: ${err.message}`);
+
+      if (attempts >= maxAttempts) {
+        break;
+      }
+
+      // More intelligent wait time between retries (increases with each attempt)
+      const waitTime = 1000 + attempts * 500; // 1.5s, 2s, 2.5s, etc.
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
   }
+
+  // Clean up captcha files before returning error
+  cleanupCaptchaFiles(captchaPath);
+  return res.status(401).json({
+    success: false,
+    error: lastError ? lastError.message : "Maximum login attempts reached",
+    attempts: attempts,
+  });
 };
