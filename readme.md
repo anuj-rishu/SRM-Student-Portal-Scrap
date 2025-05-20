@@ -9,6 +9,7 @@ A Node.js API that provides programmatic access to the SRM Institute Student Por
 - **Student Profile**: Get profile data including photo URL
 - **Exam Results**: Access semester-wise academic results
 - **Hall Tickets**: Download examination hall tickets
+- **Centralized Logging**: Uses [Winston](https://github.com/winstonjs/winston) for request and error logging
 
 ## Prerequisites
 
@@ -49,7 +50,13 @@ npm install
 yarn install
 ```
 
-3. Start the server
+3. Create a `.env` file in the project root:
+```
+JWT_SECRET=your-super-secure-secret-key
+LOG_LEVEL=info
+```
+
+4. Start the server
 ```bash
 npm start
 # or
@@ -60,52 +67,58 @@ The server will start on http://localhost:9000
 
 ## API Endpoints
 
+All endpoints (except `/api/auth/login`) require a JWT token in the `Authorization` header.
+
 ### Authentication
 
 ```
-POST /auth/login
+POST /api/auth/login
 ```
 
 **Request Body:**
 ```json
 {
-  "regNo": "YOUR NET ID",
-  "password": "YOUR_PASSWORD"
+  "login": "YOUR_NET_ID",
+  "passwd": "YOUR_PASSWORD"
 }
 ```
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "message": "Login successful",
-  "data": {
-    "token": "SESSION_TOKEN"
-  }
+  "success": true,
+  "token": "JWT_TOKEN",
+  "message": "Login successful."
 }
+```
+
+Use the returned `token` in the `Authorization` header for all subsequent requests:
+
+```
+Authorization: Bearer JWT_TOKEN
 ```
 
 ### Personal Details
 
 ```
-GET /student/personal-details
+GET /api/personal-details
 ```
 
-**Request Headers:**
+**Headers:**
 ```
-Authorization: Bearer SESSION_TOKEN
+Authorization: Bearer JWT_TOKEN
 ```
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "data": {
+  "success": true,
+  "personalDetails": {
     "name": "Student Name",
     "regNo": "Registration Number",
     "dateOfBirth": "DOB",
     "email": "Email Address",
-    "phone": "Phone Number",
+    "phone": "Phone Number"
     // Additional personal details
   }
 }
@@ -114,23 +127,23 @@ Authorization: Bearer SESSION_TOKEN
 ### Student Profile
 
 ```
-GET /student/profile
+GET /api/profile
 ```
 
-**Request Headers:**
+**Headers:**
 ```
-Authorization: Bearer SESSION_TOKEN
+Authorization: Bearer JWT_TOKEN
 ```
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "data": {
+  "success": true,
+  "profile": {
     "name": "Student Name",
     "regNo": "Registration Number",
     "branch": "Branch Name",
-    "photoUrl": "URL to student photo",
+    "photoUrl": "URL to student photo"
     // Additional profile information
   }
 }
@@ -139,24 +152,19 @@ Authorization: Bearer SESSION_TOKEN
 ### Exam Results
 
 ```
-GET /academic/results
+GET /api/results
 ```
 
-**Request Headers:**
+**Headers:**
 ```
-Authorization: Bearer SESSION_TOKEN
-```
-
-**Query Parameters:**
-```
-semester: SEMESTER_NUMBER (optional)
+Authorization: Bearer JWT_TOKEN
 ```
 
 **Response:**
 ```json
 {
-  "status": "success",
-  "data": {
+  "success": true,
+  "results": {
     "semester": "Semester Number",
     "gpa": "GPA",
     "courses": [
@@ -175,29 +183,28 @@ semester: SEMESTER_NUMBER (optional)
 ### Hall Ticket
 
 ```
-GET /academic/hall-ticket
+GET /api/hall-ticket
 ```
 
-**Request Headers:**
+**Headers:**
 ```
-Authorization: Bearer SESSION_TOKEN
-```
-
-**Query Parameters:**
-```
-examType: EXAM_TYPE (e.g., "midterm", "endterm")
+Authorization: Bearer JWT_TOKEN
 ```
 
 **Response:**
 Returns PDF file of the hall ticket or:
 ```json
 {
-  "status": "error",
-  "message": "Hall ticket not available"
+  "success": false,
+  "message": "No hall ticket available"
 }
 ```
 
+## Logging
 
+- All requests and errors are logged using Winston.
+- Logs include timestamps, log levels, request info, and error details.
+- Log level can be set via the `LOG_LEVEL` environment variable.
 
 ## Important Notes
 
