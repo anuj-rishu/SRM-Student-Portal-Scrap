@@ -3,6 +3,6 @@ const resultsController = require("../controllers/resultsController");
 
 const router = express.Router();
 
-router.post("/results", resultsController.getResults);
+router.get("/results", resultsController.getResults);
 
 module.exports = router;

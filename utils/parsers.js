@@ -88,18 +88,11 @@ function parseHallTicketData(html) {
   return data;
 }
 
-
-// ...existing code...
-
-/**
- * Parse student profile data from HTML
- */
 function parseProfileData(html) {
   const $ = cheerio.load(html);
   const profile = {};
   
   try {
-    // Extract basic profile information from table
     $('table.table-borderless tbody tr').each((i, el) => {
       const label = $(el).find('td').first().text().trim();
       const valueElement = $(el).find('td').last().find('div').first();
@@ -133,15 +126,12 @@ function parseProfileData(html) {
       }
     });
     
-    // Extract student photo URL if available
     const photoSrc = $('.imgPhoto').attr('src');
     if (photoSrc) {
-      // Convert relative URL to absolute
       profile.photoUrl = 'https://sp.srmist.edu.in/srmiststudentportal' + 
                         photoSrc.replace('../../', '/');
     }
     
-    // Extract current status
     const statusElement = $('.large.font-weight-bold.text-custom.text-center');
     if (statusElement.length > 0) {
       const statusText = statusElement.text().trim();
@@ -158,11 +148,9 @@ function parseProfileData(html) {
   }
 }
 
-
-
 module.exports = {
   parsePersonalDetails,
-      parseResultsData,
-      parseHallTicketData,
-      parseProfileData,
-    };
+  parseResultsData,
+  parseHallTicketData,
+  parseProfileData,
+};

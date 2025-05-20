@@ -1,19 +1,35 @@
 const fetch = require("node-fetch");
 const { HALL_TICKET_URL, REFERER_URL } = require("../config/constants");
 const { parseHallTicketData } = require("../utils/parsers");
+const { logger } = require("../middleware/logger");
 
 exports.getHallTicket = async (req, res) => {
-  const { cookies, csrf } = req.body;
-  if (!cookies || !csrf)
+  const { cookies, csrf } = req;
+  
+  if (!cookies || !csrf) {
+    logger.error({
+      message: "Authentication data missing",
+      url: req.originalUrl,
+      method: req.method,
+      body: req.body,
+    });
     return res
       .status(400)
-      .json({ success: false, error: "Missing cookies or csrf token" });
+      .json({ success: false, error: "Authentication data missing" });
+  }
 
   const jsessionCookie = cookies.find((c) => c.name === "JSESSIONID");
-  if (!jsessionCookie)
+  if (!jsessionCookie) {
+    logger.error({
+      message: "JSESSIONID cookie not found",
+      url: req.originalUrl,
+      method: req.method,
+      body: req.body,
+    });
     return res
       .status(400)
       .json({ success: false, error: "JSESSIONID cookie not found" });
+  }
 
   try {
     const response = await fetch(HALL_TICKET_URL, {
@@ -67,7 +83,14 @@ exports.getHallTicket = async (req, res) => {
 
     res.send(pdfBuffer);
   } catch (error) {
-    console.error("Error fetching hall ticket:", error.message);
+    logger.error({
+      message: "Error fetching hall ticket",
+      error: error.message,
+      stack: error.stack,
+      url: req.originalUrl,
+      method: req.method,
+      body: req.body,
+    });
     res.status(500).json({ success: false, error: error.message });
   }
 };

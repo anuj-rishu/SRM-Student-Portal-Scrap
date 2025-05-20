@@ -3,6 +3,6 @@ const hallticketController = require("../controllers/hallticketController");
 
 const router = express.Router();
 
-router.post("/hall-ticket", hallticketController.getHallTicket);
+router.get("/hall-ticket", hallticketController.getHallTicket);
 
 module.exports = router;

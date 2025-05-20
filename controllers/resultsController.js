@@ -1,19 +1,35 @@
 const fetch = require("node-fetch");
 const { RESULTS_URL, REFERER_URL } = require("../config/constants");
 const { parseResultsData } = require("../utils/parsers");
+const { logger } = require("../middleware/logger");
 
 exports.getResults = async (req, res) => {
-  const { cookies, csrf } = req.body;
-  if (!cookies || !csrf)
+  const { cookies, csrf } = req;
+  
+  if (!cookies || !csrf) {
+    logger.error({
+      message: "Authentication data missing",
+      url: req.originalUrl,
+      method: req.method,
+      body: req.body,
+    });
     return res
       .status(400)
-      .json({ success: false, error: "Missing cookies or csrf token" });
+      .json({ success: false, error: "Authentication data missing" });
+  }
 
   const jsessionCookie = cookies.find((c) => c.name === "JSESSIONID");
-  if (!jsessionCookie)
+  if (!jsessionCookie) {
+    logger.error({
+      message: "JSESSIONID cookie not found",
+      url: req.originalUrl,
+      method: req.method,
+      body: req.body,
+    });
     return res
       .status(400)
       .json({ success: false, error: "JSESSIONID cookie not found" });
+  }
 
   try {
     const response = await fetch(RESULTS_URL, {
@@ -39,7 +55,14 @@ exports.getResults = async (req, res) => {
 
     res.json({ success: true, results: resultsData });
   } catch (error) {
-    console.error("Error fetching results:", error.message);
+    logger.error({
+      message: "Error fetching results",
+      error: error.message,
+      stack: error.stack,
+      url: req.originalUrl,
+      method: req.method,
+      body: req.body,
+    });
     res.status(500).json({ success: false, error: error.message });
   }
 };

@@ -1,11 +1,16 @@
+require("dotenv").config();
 const puppeteer = require("puppeteer");
 const path = require("path");
+const jwt = require("jsonwebtoken");
+const { logger } = require("../middleware/logger");
 
 const { LOGIN_URL } = require("../config/constants");
 const {
   recognizeCaptchaWithRetry,
   cleanupCaptchaFiles,
 } = require("../utils/captcha");
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 async function loginUser(login, passwd, captchaPath) {
   const launchOptions = {
@@ -22,7 +27,6 @@ async function loginUser(login, passwd, captchaPath) {
 
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-
     launchOptions.args.push("--no-zygote", "--single-process");
   }
 
@@ -85,14 +89,12 @@ exports.login = async (req, res) => {
   const { login, passwd } = req.body;
   const captchaPath = path.join(__dirname, "..", "captcha.png");
 
-  // Add retries for the entire login process
   let attempts = 0;
-  const maxAttempts = 5; // Increased from 3 to 5 for better success rate
+  const maxAttempts = 5;
   let lastError = null;
 
   while (attempts < maxAttempts) {
     try {
-      // Clear previous captcha file if it exists
       if (attempts > 0) {
         try {
           const fs = require("fs");
@@ -100,16 +102,38 @@ exports.login = async (req, res) => {
             fs.unlinkSync(captchaPath);
           }
         } catch (e) {
-          console.log("Error cleaning up previous captcha:", e.message);
+          logger.error({
+            message: "Error cleaning up previous captcha",
+            error: e.message,
+            stack: e.stack,
+            url: req.originalUrl,
+            method: req.method,
+            body: req.body,
+          });
         }
       }
 
       const { cookies, csrf } = await loginUser(login, passwd, captchaPath);
-      cleanupCaptchaFiles(captchaPath); // Clean up on success
+      cleanupCaptchaFiles(captchaPath);
+
+      const jsessionCookie = cookies.find((c) => c.name === "JSESSIONID");
+
+      if (!jsessionCookie) {
+        throw new Error("JSESSIONID cookie not found");
+      }
+
+      const token = jwt.sign(
+        {
+          jsessionid: jsessionCookie.value,
+          csrf: csrf,
+        },
+        JWT_SECRET,
+        { expiresIn: "12h" }
+      );
+
       return res.json({
         success: true,
-        cookies,
-        csrf,
+        token: token,
         message:
           attempts > 0
             ? `Login successful after ${attempts + 1} attempts.`
@@ -118,20 +142,32 @@ exports.login = async (req, res) => {
     } catch (err) {
       lastError = err;
       attempts++;
-      console.log(`Login attempt ${attempts} failed: ${err.message}`);
+      logger.error({
+        message: `Login attempt ${attempts} failed: ${err.message}`,
+        stack: err.stack,
+        url: req.originalUrl,
+        method: req.method,
+        body: req.body,
+      });
 
       if (attempts >= maxAttempts) {
         break;
       }
 
-      // More intelligent wait time between retries (increases with each attempt)
-      const waitTime = 1000 + attempts * 500; // 1.5s, 2s, 2.5s, etc.
+      const waitTime = 1000 + attempts * 500;
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
   }
 
-  // Clean up captcha files before returning error
   cleanupCaptchaFiles(captchaPath);
+  logger.error({
+    message: "Login failed after maximum attempts",
+    error: lastError ? lastError.message : "Maximum login attempts reached",
+    attempts: attempts,
+    url: req.originalUrl,
+    method: req.method,
+    body: req.body,
+  });
   return res.status(401).json({
     success: false,
     error: lastError ? lastError.message : "Maximum login attempts reached",
