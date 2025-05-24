@@ -127,8 +127,7 @@ exports.login = async (req, res) => {
           jsessionid: jsessionCookie.value,
           csrf: csrf,
         },
-        JWT_SECRET,
-        { expiresIn: "12h" }
+        JWT_SECRET
       );
 
       return res.json({
